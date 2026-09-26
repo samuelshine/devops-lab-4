@@ -1,0 +1,51 @@
+DevOps Lab 4 - Multi-container application with Docker Compose, validating networking and storage
+Samuel Shine
+26 September 2026
+
+1. I used Docker Desktop (engine 29.1.3) with Docker Compose v5.0.0 as the tool, since Podman is not installed on this machine and the same compose.yaml also runs under podman compose.
+
+2. The app is a small notes service made of four containers: web (nginx 1.27), api (Express on Node 22), db (PostgreSQL 17) and cache (Redis 7).
+
+3. nginx serves the static page in web/html and forwards every /api/ request to the api service, and the api stores notes in PostgreSQL and keeps a visit counter in Redis.
+
+4. The api image is built from api/Dockerfile with a two-stage build that installs only production dependencies and runs as the non-root node user, and it came out at 246 MB.
+
+5. compose.yaml defines two networks: frontend (172.28.1.0/24) for web and api, and backend (172.28.2.0/24) for api, db and cache, with backend marked internal: true.
+
+6. The api is the only service on both networks, so web can reach the api but has no route or DNS entry for db or cache.
+
+7. Only web publishes a port (8080 on the host), and db and cache are reachable only from inside the backend network.
+
+8. Every service has a healthcheck, and depends_on with condition: service_healthy makes Compose start db and cache first, then api, then web.
+
+9. Storage uses two named volumes, pgdata for the PostgreSQL data directory and redisdata for the Redis append-only file, plus read-only bind mounts for the nginx config, the html folder and db/init.sql.
+
+10. The database password is a Compose secret read from secrets/db_password.txt, mounted at /run/secrets/db_password, and never put in an environment variable. The real file is in .gitignore and secrets/db_password.example.txt shows the format.
+
+11. docker compose up -d --build --wait built the api image, created the networks and volumes, and waited until all four containers reported healthy.
+
+12. Inside the api container, nslookup db and nslookup cache resolved through Docker's embedded DNS at 127.0.0.11, and ping cache got replies.
+
+13. From the web container, ping db failed with "bad address 'db'" and nslookup cache returned NXDOMAIN, which confirms the network isolation.
+
+14. ping 8.8.8.8 from the cache container failed with "Network unreachable" because the backend network is internal, while the api could still reach example.com through the frontend network.
+
+15. I scaled the api to three replicas with --scale api=3. Docker DNS returned three addresses for api, and six requests through nginx went round-robin across the three containers while the Redis counter kept counting from one shared value.
+
+16. nginx first sent every request to one replica because proxy_pass with a variable caches one address. I changed it to an upstream block with server api:3000 resolve, which re-resolves the name every 5 seconds and balances across all replicas.
+
+17. I added a note, ran docker compose down (which removed every container and network), and ran docker compose up again. The note and the Redis visit count were still there because the named volumes were not removed.
+
+18. The html bind mount is read-only inside nginx, so touch failed with "Read-only file system", but a file I created on the host was served right away without restarting the container.
+
+19. I backed up the database with pg_dump into backups/notes-backup.sql.
+
+20. docker compose down -v deleted both volumes, and after starting again only the seed note from init.sql was left, which shows the data lived in the volumes and not in the containers.
+
+21. Restoring backups/notes-backup.sql with psql brought all three notes back.
+
+22. scripts/validate.sh runs 10 networking checks and 9 storage checks and prints PASS or FAIL for each. All 19 passed.
+
+23. After a db restart, the api logged the dropped connections and reconnected by itself, because the pg pool has an error handler and the Redis client retries.
+
+24. The code is in the GitHub repository samuelshine/devops-lab-4.
