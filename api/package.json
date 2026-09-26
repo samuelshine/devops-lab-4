@@ -1,0 +1,16 @@
+{
+  "name": "devops-lab-4-api",
+  "version": "1.0.0",
+  "description": "Lab 4 - notes API backed by PostgreSQL and Redis",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "redis": "^4.7.0"
+  },
+  "license": "MIT"
+}

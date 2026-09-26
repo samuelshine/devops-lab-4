@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lab 4 Notes</title>
+  <style>
+    body { font-family: -apple-system, Helvetica, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; color: #1f2328; }
+    h1 { margin-bottom: 4px; }
+    .sub { color: #656d76; margin-top: 0; }
+    form { display: flex; gap: 8px; margin: 24px 0; }
+    input { flex: 1; padding: 8px; font-size: 15px; }
+    button { padding: 8px 16px; font-size: 15px; }
+    li { padding: 6px 0; border-bottom: 1px solid #eee; }
+    small { color: #656d76; }
+    #who { background: #f6f8fa; padding: 8px 12px; border-radius: 6px; font-family: Menlo, monospace; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>Lab 4 Notes</h1>
+  <p class="sub">nginx &rarr; Express API &rarr; PostgreSQL + Redis, wired with Docker Compose</p>
+  <div id="who">loading...</div>
+  <form id="f">
+    <input id="t" placeholder="Write a note" autocomplete="off">
+    <button>Add</button>
+  </form>
+  <ul id="notes"></ul>
+  <script>
+    async function load() {
+      const who = await (await fetch('/api/whoami')).json();
+      document.getElementById('who').textContent = `served by api container ${who.container} | page visits: ${who.visits}`;
+      const notes = await (await fetch('/api/notes')).json();
+      document.getElementById('notes').innerHTML = notes.map((n) =>
+        `<li>${n.text.replace(/</g, '&lt;')} <small>#${n.id} by ${n.created_by}</small></li>`).join('');
+    }
+    document.getElementById('f').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const t = document.getElementById('t');
+      if (!t.value.trim()) return;
+      await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: t.value }) });
+      t.value = '';
+      load();
+    });
+    load();
+  </script>
+</body>
+</html>
